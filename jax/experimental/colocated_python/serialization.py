@@ -260,6 +260,12 @@ def _serialize(obj: Any) -> bytes:
     _common_obj_state.common_obj_index = None
 
 
+# NOTE: Lock is required since `loads` can trigger importing Python modules,
+# and doing so across multiple threads in parallel is not thread safe and
+# can lead to deadlocks.
+_deserialize_lock = threading.Lock()
+
+
 def _deserialize(serialized: bytes) -> Any:
   """Deserializes callables and input/output spec objects.
 
@@ -272,13 +278,15 @@ def _deserialize(serialized: bytes) -> Any:
   if cloudpickle is None:
     raise ModuleNotFoundError('No module named "cloudpickle"')
 
-  assert _common_obj_state.common_obj is None, (
-      "_deserialize() expects no recursive calls")
-  _common_obj_state.common_obj = []
-  try:
-    return cloudpickle.loads(serialized)
-  finally:
-    _common_obj_state.common_obj = None
+  with _deserialize_lock:
+    assert (
+        _common_obj_state.common_obj is None
+    ), "_deserialize() expects no recursive calls"
+    _common_obj_state.common_obj = []
+    try:
+      return cloudpickle.loads(serialized)
+    finally:
+      _common_obj_state.common_obj = None
 
 
 def _make_specs_for_serialized_specs(
