@@ -170,9 +170,6 @@ class RemoteDMATest(parameterized.TestCase):
         mesh=s_mesh,
         out_type=jax.ShapeDtypeStruct(local_out_shape, x.dtype),
         scratch_types=scratch_types,
-        compiler_params=pltpu.CompilerParams(
-            needs_layout_passes=False,
-        ),
     )
     def shift_kernel(x_ref, out_ref, *, scratch_recv, send_sem, recv_sem, scratch_send=None):
       assert x_ref.shape == (1, num_cores, num_subcores, sc_info.num_lanes)
@@ -353,10 +350,6 @@ class DistributedMpmdTest(parameterized.TestCase):
               scs_to_vec=pltpu.SemaphoreType.REGULAR(()) @ vec_mesh,
               barrier_scs_sem=pltpu.SemaphoreType.REGULAR(()) @ scs_mesh,
               barrier_vec_sem=pltpu.SemaphoreType.REGULAR(()) @ vec_mesh,
-          ),
-          compiler_params=pltpu.CompilerParams(
-              # TODO(ivyzheng): Remove this when the layout pass flag is gone.
-              needs_layout_passes=False,
           ),
       )()
       actual = result.reshape(-1)
