@@ -1501,7 +1501,10 @@ def _make_pipeline_allocations(
       prefetched_count = in_spec.pipeline_mode.prefetched_count
     if use_lookahead and grid is None:
       raise ValueError("Grid must be specified when using lookahead.")
-    is_trivial = _spec_has_trivial_windowing(in_spec, grid, in_aval.shape)
+    is_trivial = (
+        prefetched_count == 0
+        and _spec_has_trivial_windowing(in_spec, grid, in_aval.shape)
+    )
     if not has_buffering and is_trivial:
       buffer_count = 1
 
@@ -1894,12 +1897,6 @@ def _emit_pipeline(
       initial_indices = (0,) * len(grid)
       brefs = map_brefs(lambda bref: bref.initialize_slots(), allocations)
 
-      @functools.partial(
-          jax.lax.fori_loop,
-          0,
-          num_steps,
-          init_val=(brefs, initial_indices),
-      )
       def _loop_body(step, carry):
         brefs, indices = carry
         indices = _filter_indices(indices, grid)
@@ -1927,6 +1924,9 @@ def _emit_pipeline(
           map_outputs(copy_out, brefs, refs)
         brefs = map_brefs(scheduler.unalias_local_refs, brefs)
         return brefs, _next_index(indices, grid)
+
+      with config.mutable_array_checks(False):
+        jax.lax.fori_loop(0, num_steps, _loop_body, (brefs, initial_indices))
     else:
       @when(num_steps > 0)
       def _():
@@ -1953,9 +1953,10 @@ def _emit_pipeline(
                 brefs, refs)
 
         # pipeline loop
-        brefs, next_indices = lax.fori_loop(
-            0, num_steps, loop_body, (brefs, initial_indices)
-        )
+        with config.mutable_array_checks(False):
+          brefs, next_indices = lax.fori_loop(
+              0, num_steps, loop_body, (brefs, initial_indices)
+          )
 
         # pipeline epilogue
         final_indices = _prev_index(next_indices, grid)
