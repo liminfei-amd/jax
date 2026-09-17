@@ -1598,6 +1598,13 @@ class ConvTest(ptu.PallasTPUTest):
           padding=((1, 1), (1, 1)),
           batch_group_count=2,
       ),
+      dict(
+          testcase_name="_mixed_degenerate",
+          lhs_shape=(8, 1, 16, 128),
+          rhs_shape=(1, 3, 128, 128),
+          window_strides=(1, 1),
+          padding=((0, 0), (1, 1)),
+      ),
   )
   def test_conv_general_dilated(
       self,
